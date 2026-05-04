@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arc Western Montana — Fleet Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f5f3; --surface: #ffffff; --surface2: #f0efed;
+    --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+    --text: #1a1a18; --text2: #6b6b67; --text3: #9a9a96;
+    --blue: #185FA5; --blue-light: #E6F1FB; --blue-text: #0C447C;
+    --green: #3B6D11; --green-light: #EAF3DE;
+    --amber: #854F0B; --amber-light: #FAEEDA;
+    --red: #A32D2D; --red-light: #FCEBEB;
+    --radius: 10px; --radius-sm: 6px;
+  }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-size: 17px; font-weight: 600; }
+  .header .sub { font-size: 12px; color: var(--text2); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .dot-green { background: #639922; } .dot-amber { background: #EF9F27; } .dot-red { background: #E24B4A; }
+  .btn { padding: 7px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border2); background: var(--surface); color: var(--text); transition: background 0.15s; }
+  .btn:hover { background: var(--surface2); } .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn-primary:hover:not(:disabled) { background: var(--blue-text); }
+  .btn-success { background: #3B6D11; color: #fff; border-color: #3B6D11; }
+  .btn-success:hover { background: #2a4f0c; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .auth-screen { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 60px); }
+  .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 48px 40px; text-align: center; max-width: 500px; width: 100%; }
+  .ms-logo { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .auth-card h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+  .auth-card p { color: var(--text2); line-height: 1.6; font-size: 14px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(0,0,0,0.15); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .metric-label { font-size: 11px; color: var(--text2); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric-value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .metric-sub { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .col-green { color: var(--green); } .col-amber { color: var(--amber); } .col-red { color: var(--red); } .col-blue { color: var(--blue); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .card-title { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .badge { font-size: 11px; padding: 2px 9px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .badge-red { background: var(--red-light); color: var(--red); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-blue { background: var(--blue-light); color: var(--blue-text); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: left; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface2); }
+  .alert-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 8px; }
+  .alert-item:last-child { border-bottom: none; }
+  .progress-bar { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .progress-fill { height: 100%; border-radius: 3px; }
+  .tab-row { display: flex; gap: 2px; margin-bottom: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px; width: fit-content; flex-wrap: wrap; }
+  .tab { padding: 7px 16px; border-radius: 5px; font-size: 13px; cursor: pointer; color: var(--text2); border: none; background: transparent; font-weight: 500; transition: all 0.15s; }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { background: var(--blue); color: #fff; }
+  .alert-pill { background: #E24B4A; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-left: 4px; }
+  .filter-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  input[type=text], select { padding: 7px 12px; border: 1px solid var(--border2); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface); color: var(--text); outline: none; }
+  input[type=text]:focus, select:focus { border-color: var(--blue); }
+  .empty { color: var(--text3); font-size: 13px; padding: 20px 0; text-align: center; }
+  .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .report-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .report-card h3 { font-size: 14px; font-weight: 600; color: var(--text); }
+  .report-card p { font-size: 13px; color: var(--text2); line-height: 1.5; }
+  .report-card .report-icon { font-size: 28px; margin-bottom: 4px; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } .auth-card { padding: 32px 20px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Arc Western Montana — Fleet Dashboard</h1>
+    <div class="sub"><span class="dot dot-amber" id="status-dot"></span><span id="status-text">Not connected</span></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-primary" id="signin-btn" onclick="signIn()">Sign in to SharePoint</button>
+  </div>
+</div>
+
+<div id="auth-screen" class="auth-screen">
+  <div class="auth-card">
+    <div class="ms-logo">
+      <svg width="28" height="28" viewBox="0 0 24 24"><rect x="1" y="1" width="10" height="10" fill="#F35325"/><rect x="13" y="1" width="10" height="10" fill="#81BC06"/><rect x="1" y="13" width="10" height="10" fill="#05A6F0"/><rect x="13" y="13" width="10" height="10" fill="#FFBA08"/></svg>
+      <span style="font-size:18px;font-weight:600;">Microsoft 365</span>
+    </div>
+    <h2>Arc Fleet Dashboard</h2>
+    <p style="margin-bottom:24px;">Connect to your live Vehicle Database, Maintenance Log,<br>and Mileage Log from <strong>thearcwmt.sharepoint.com</strong></p>
+    <div id="pre-signin">
+      <button class="btn btn-primary" onclick="signIn()" style="font-size:14px;padding:11px 32px;width:100%;margin-bottom:12px;">Sign in with Microsoft</button>
+      <button class="btn" onclick="loadDemo();showDash();" style="width:100%;font-size:13px;">Preview with demo data</button>
+    </div>
+    <div id="signing-in" style="display:none;"><span class="spinner"></span> Signing you in...</div>
+    <p id="auth-err" style="display:none;color:var(--red);font-size:13px;margin-top:12px;"></p>
+  </div>
+</div>
+
+<div id="dashboard" style="display:none;">
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:8px;">
+      <div class="tab-row">
+        <button class="tab active" onclick="switchTab('overview',this)">Overview</button>
+        <button class="tab" onclick="switchTab('vehicles',this)">Vehicles</button>
+        <button class="tab" onclick="switchTab('maintenance',this)">Maintenance</button>
+        <button class="tab" onclick="switchTab('mileage',this)">Mileage</button>
+        <button class="tab" onclick="switchTab('alerts',this)">Alerts <span class="alert-pill" id="alert-pill" style="display:none;"></span></button>
+        <button class="tab" onclick="switchTab('reports',this)">Reports</button>
+      </div>
+      <button class="btn" onclick="refreshData()" id="refresh-btn">&#8635; Refresh</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div id="tab-overview">
+      <div class="metrics" id="kpi-cards"></div>
+      <div class="grid2">
+        <div class="card"><div class="card-title">Vehicles by status</div><div style="position:relative;height:220px;"><canvas id="statusChart" role="img" aria-label="Status chart">Status breakdown.</canvas></div></div>
+        <div class="card"><div class="card-title">Vehicles by location</div><div id="location-list"></div></div>
+      </div>
+      <div class="card"><div class="card-title">Upcoming alerts — next 60 days</div><div id="alert-overview"></div></div>
+    </div>
+
+    <!-- VEHICLES -->
+    <div id="tab-vehicles" style="display:none;">
+      <div class="filter-row">
+        <input type="text" id="search-v" placeholder="Search make, model, location..." style="min-width:220px;" oninput="renderVehicles()">
+        <select id="filter-status" onchange="renderVehicles()"><option value="">All statuses</option><option>Active</option><option>Out of Service</option><option>Sold</option></select>
+        <select id="filter-loc" onchange="renderVehicles()"><option value="">All locations</option></select>
+      </div>
+      <div class="card table-wrap">
+        <table><thead><tr><th>#</th><th>Year</th><th>Make</th><th>Model</th><th>Color</th><th>License</th><th>Location</th><th>Reg. Due</th><th>Mileage</th><th>Status</th></tr></thead><tbody id="vehicle-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- MAINTENANCE -->
+    <div id="tab-maintenance" style="display:none;">
+      <div class="metrics" id="maint-kpis"></div>
+      <div class="grid2" style="margin-bottom:14px;">
+        <div class="card"><div class="card-title">Service type count</div><div style="position:relative;height:220px;"><canvas id="maintChart" role="img" aria-label="Maintenance chart">Service breakdown.</canvas></div></div>
+        <div class="card"><div class="card-title">Cost by service type</div><div id="maint-cost"></div></div>
+      </div>
+      <div class="card table-wrap">
+        <div class="card-title" style="margin-bottom:12px;">Maintenance log</div>
+        <table><thead><tr><th>Vehicle #</th><th>Service type</th><th>Date</th><th>Mileage</th><th>Cost</th><th>Vendor</th><th>Notes</th></tr></thead><tbody id="maint-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- MILEAGE -->
+    <div id="tab-mileage" style="display:none;">
+      <div class="card table-wrap">
+        <div class="card-title" style="margin-bottom:12px;">Mileage log</div>
+        <table><thead><tr><th>Vehicle #</th><th>Date</th><th>Odometer</th><th>Submitted by</th><th>Location</th><th>Notes</th></tr></thead><tbody id="mileage-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ALERTS -->
+    <div id="tab-alerts" style="display:none;">
+      <div class="metrics" id="alert-kpis"></div>
+      <div class="card"><div class="card-title">All upcoming alerts — next 60 days</div><div id="alert-full"></div></div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="tab-reports" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Reports</div>
+          <div style="font-size:13px;color:var(--text2);">Generate and download reports as CSV files</div>
+        </div>
+      </div>
+      <div class="report-grid">
+        <div class="report-card">
+          <div class="report-icon">🚗</div>
+          <h3>Full Vehicle Report</h3>
+          <p>All vehicles with status, location, registration dates, mileage, make and model.</p>
+          <button class="btn btn-primary" onclick="exportCSV('vehicles')" style="margin-top:auto;">Download CSV</button>
+        </div>
+        <div class="report-card">
+          <div class="report-icon">⚠️</div>
+          <h3>Alerts Report</h3>
+          <p>All vehicles with registration or oil change due within 60 days, sorted by urgency.</p>
+          <button class="btn" style="margin-top:auto;background:#A32D2D;color:#fff;border-color:#A32D2D;" onclick="exportCSV('alerts')">Download CSV</button>
+        </div>
+        <div class="report-card">
+          <div class="report-icon">🔧</div>
+          <h3>Maintenance Report</h3>
+          <p>Complete maintenance log with service types, costs, vendors, and dates.</p>
+          <button class="btn btn-success" onclick="exportCSV('maintenance')" style="margin-top:auto;">Download CSV</button>
+        </div>
+        <div class="report-card">
+          <div class="report-icon">📍</div>
+          <h3>Mileage Report</h3>
+          <p>Full mileage log with odometer readings, submission dates, and locations.</p>
+          <button class="btn" style="margin-top:auto;background:#854F0B;color:#fff;border-color:#854F0B;" onclick="exportCSV('mileage')">Download CSV</button>
+        </div>
+        <div class="report-card">
+          <div class="report-icon">📊</div>
+          <h3>Cost Summary Report</h3>
+          <p>Maintenance costs grouped by vehicle and service type with totals.</p>
+          <button class="btn" style="margin-top:auto;background:#185FA5;color:#fff;border-color:#185FA5;" onclick="exportCSV('costs')">Download CSV</button>
+        </div>
+        <div class="report-card">
+          <div class="report-icon">📋</div>
+          <h3>Registration Report</h3>
+          <p>All vehicles with registration dates, license plates, and DOT status.</p>
+          <button class="btn" style="margin-top:auto;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="exportCSV('registration')">Download CSV</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:4px;">
+        <div class="card-title">Custom report — filter then download</div>
+        <div class="filter-row" style="margin-bottom:12px;">
+          <select id="report-status" style="font-size:13px;"><option value="">All statuses</option><option>Active</option><option>Out of Service</option><option>Sold</option></select>
+          <select id="report-loc" style="font-size:13px;"><option value="">All locations</option></select>
+          <select id="report-make" style="font-size:13px;"><option value="">All makes</option></select>
+          <button class="btn btn-primary" onclick="exportCSV('custom')">Download Filtered CSV</button>
+        </div>
+        <div style="font-size:12px;color:var(--text3);">Select filters above then click Download to get a custom vehicle report.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const CLIENT_ID = '76665ea9-9e88-4f61-a8e4-26d6f80fbb36';
+const TENANT_ID = 'cc785eeb-a33c-4a65-aadf-7e48e6e55efa';
+const REDIRECT = 'https://arcwmt.github.io/arc-fleet/';
+const SCOPE = 'https://graph.microsoft.com/Sites.Read.All';
+
+let token = null, siteId = null;
+let vehicles = [], maint = [], mileage = [];
+let chartStatus = null, chartMaint = null;
+
+function setStatus(msg, type) {
+  document.getElementById('status-text').textContent = msg;
+  document.getElementById('status-dot').className = 'dot dot-' + (type || 'amber');
+}
+
+function signIn() {
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID, response_type: 'token',
+    redirect_uri: REDIRECT, scope: SCOPE,
+    response_mode: 'fragment', nonce: Math.random().toString(36).slice(2)
+  });
+  document.getElementById('pre-signin').style.display = 'none';
+  document.getElementById('signing-in').style.display = 'block';
+  window.location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+}
+
+function parseHash() {
+  const h = location.hash.slice(1);
+  const p = new URLSearchParams(h);
+  if (p.get('access_token')) { history.replaceState(null,'',location.pathname); return p.get('access_token'); }
+  return null;
+}
+
+async function api(path) {
+  const r = await fetch('https://graph.microsoft.com/v1.0' + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (!r.ok) throw new Error('Graph ' + r.status);
+  return r.json();
+}
+
+async function getItems(listId) {
+  let items = [], url = `/sites/${siteId}/lists/${listId}/items?expand=fields&$top=200`;
+  while (url) {
+    const d = await api(url);
+    items = items.concat((d.value||[]).map(i=>i.fields));
+    url = d['@odata.nextLink'] ? d['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
+  }
+  return items;
+}
+
+async function loadLive() {
+  try {
+    setStatus('Connecting to SharePoint...', 'amber');
+    const site = await api('/sites/thearcwmt.sharepoint.com:/sites/TheArcFleetandFacilityManagement');
+    siteId = site.id;
+    const lists = (await api(`/sites/${siteId}/lists`)).value;
+    const find = (...kws) => lists.find(l => kws.some(k => l.displayName.toLowerCase().includes(k.toLowerCase())));
+    const vL = find('vehicle database','vehicle','fleet');
+    const mL = find('maintenance log','maintenance','service');
+    const miL = find('mileage log','mileage','odometer');
+    if (vL) vehicles = await getItems(vL.id);
+    if (mL) maint = await getItems(mL.id);
+    if (miL) mileage = await getItems(miL.id);
+    setStatus('Live — ' + vehicles.length + ' vehicles from SharePoint', 'green');
+    const btn = document.getElementById('signin-btn');
+    btn.textContent = '✓ Connected'; btn.disabled = true;
+    showDash();
+  } catch(e) {
+    setStatus('Error — showing demo data', 'red');
+    loadDemo(); showDash();
+  }
+}
+
+async function refreshData() {
+  if (!token) return;
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = 'Loading...'; btn.disabled = true;
+  await loadLive();
+  btn.textContent = '↻ Refresh'; btn.disabled = false;
+}
+
+function loadDemo() {
+  const makes=['Ford','Dodge','Chevrolet','Toyota','GMC'], models=['F-150','Transit','Express','Sienna','Sierra'];
+  const locs=['Missoula','Kalispell','Helena','Great Falls','Butte'], colors=['White','Gray','Blue','Silver','Red'];
+  const statuses=['Active','Active','Active','Active','Out of Service'];
+  vehicles=[];
+  for(let i=1;i<=27;i++){
+    const m=(i-1)%5, mo=String(((i%8)+4)).padStart(2,'0'), day=String(10+(i%15)).padStart(2,'0'), oilMo=String(((i%10)+1)).padStart(2,'0');
+    vehicles.push({Title:'V'+String(i).padStart(3,'0'),Year:String(2016+m),Make:makes[m],Model:models[m],Color:colors[m],VehicleStatus:statuses[m],Location:locs[m],'License Plate #':'MT-'+String(1000+i),'Registration Due':'2026-'+mo+'-'+day,LastOilChange:'2025-'+oilMo+'-15',CurrentMileage:Math.round(50000+i*3200)});
+  }
+  maint=[
+    {VehicleNumber:'V001',ServiceType:'Oil Change',DateofService:'2025-11-01',Cost:'$85.00',MileageatService:45000,VendorShop:'Arc Fleet',Notes:'Full synthetic'},
+    {VehicleNumber:'V002',ServiceType:'Tire Rotation',DateofService:'2025-10-15',Cost:'$45.00',MileageatService:32000,VendorShop:'Les Schwab',Notes:''},
+    {VehicleNumber:'V003',ServiceType:'Brake Service',DateofService:'2025-09-20',Cost:'$320.00',MileageatService:67000,VendorShop:'Midas',Notes:'Front pads replaced'},
+    {VehicleNumber:'V004',ServiceType:'Oil Change',DateofService:'2025-12-01',Cost:'$90.00',MileageatService:28000,VendorShop:'Arc Fleet',Notes:''},
+    {VehicleNumber:'V005',ServiceType:'Registration',DateofService:'2025-08-10',Cost:'$120.00',MileageatService:51000,VendorShop:'MT DMV',Notes:'Annual renewal'},
+    {VehicleNumber:'V006',ServiceType:'Oil Change',DateofService:'2025-11-20',Cost:'$85.00',MileageatService:38000,VendorShop:'Arc Fleet',Notes:''},
+    {VehicleNumber:'V007',ServiceType:'Tire Rotation',DateofService:'2025-07-01',Cost:'$45.00',MileageatService:72000,VendorShop:'Les Schwab',Notes:''},
+  ];
+  mileage=[
+    {VehicleNumber:'V001',EntryDate:'2026-04-01',OdometerReading:45450,SubmittedBy:'Staff A',Location:'Missoula',Notes:''},
+    {VehicleNumber:'V002',EntryDate:'2026-04-01',OdometerReading:32380,SubmittedBy:'Staff B',Location:'Kalispell',Notes:''},
+    {VehicleNumber:'V004',EntryDate:'2026-04-01',OdometerReading:28510,SubmittedBy:'Staff C',Location:'Helena',Notes:''},
+    {VehicleNumber:'V003',EntryDate:'2026-03-25',OdometerReading:67290,SubmittedBy:'Staff D',Location:'Missoula',Notes:''},
+  ];
+  setStatus('Demo mode — sign in for live data', 'amber');
+}
+
+function showDash() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  renderAll();
+}
+
+function renderAll() { renderKPIs();renderStatusChart();renderLocations();renderAlertOverview();renderVehicles();renderMaint();renderMileage();renderAlerts();populateLocFilter();populateReportFilters(); }
+
+function getF(v,...keys) { for(const k of keys){if(v[k]!==undefined&&v[k]!==null&&v[k]!=='')return v[k];}return ''; }
+
+function getAlerts() {
+  const now=new Date(), cutoff=new Date(now); cutoff.setDate(cutoff.getDate()+60);
+  const alerts=[];
+  vehicles.forEach(v=>{
+    const regRaw=getF(v,'Registration Due','RegistrationDue');
+    const oilRaw=getF(v,'Last Oil Change','LastOilChange');
+    const name=getF(v,'Title','Vehicle #')||'';
+    const make=getF(v,'Make')||''; const model=getF(v,'Model')||'';
+    if(regRaw){const d=new Date(regRaw);if(!isNaN(d)&&d<=cutoff){const days=Math.round((d-now)/86400000);alerts.push({vehicle:name,make,model,type:'Registration Due',date:d.toLocaleDateString(),days,urgent:days<=14});}}
+    if(oilRaw){const due=new Date(oilRaw);due.setDate(due.getDate()+90);if(!isNaN(due)&&due<=cutoff){const days=Math.round((due-now)/86400000);alerts.push({vehicle:name,make,model,type:'Oil Change Due',date:due.toLocaleDateString(),days,urgent:days<=14});}}
+  });
+  return alerts.sort((a,b)=>a.days-b.days);
+}
+
+const badgeCls=a=>a.urgent?'badge-red':a.days<=30?'badge-amber':'badge-blue';
+const badgeLbl=a=>a.days<0?'Overdue':a.days===0?'Today':a.days+' days';
+
+function renderKPIs() {
+  const total=vehicles.length;
+  const active=vehicles.filter(v=>getF(v,'Vehicle Status','VehicleStatus').toLowerCase()==='active').length;
+  const oos=vehicles.filter(v=>getF(v,'Vehicle Status','VehicleStatus').toLowerCase().includes('out')).length;
+  const alerts=getAlerts(), urgent=alerts.filter(a=>a.urgent).length;
+  const cost=maint.reduce((s,m)=>{const c=getF(m,'Cost','cost');return s+(parseFloat(String(c).replace(/[$,]/g,''))||0);},0);
+  document.getElementById('kpi-cards').innerHTML=`
+    <div class="metric"><div class="metric-label">Total vehicles</div><div class="metric-value col-blue">${total}</div></div>
+    <div class="metric"><div class="metric-label">Active</div><div class="metric-value col-green">${active}</div></div>
+    <div class="metric"><div class="metric-label">Out of service</div><div class="metric-value ${oos>0?'col-amber':'col-green'}">${oos}</div></div>
+    <div class="metric"><div class="metric-label">Urgent alerts</div><div class="metric-value ${urgent>0?'col-red':'col-green'}">${urgent}</div><div class="metric-sub">next 14 days</div></div>
+    <div class="metric"><div class="metric-label">Maintenance cost</div><div class="metric-value col-blue" style="font-size:20px;">$${cost.toLocaleString()}</div><div class="metric-sub">all time</div></div>`;
+  const pill=document.getElementById('alert-pill');
+  alerts.length?(pill.textContent=alerts.length,pill.style.display='inline'):pill.style.display='none';
+}
+
+function renderStatusChart() {
+  const counts={};vehicles.forEach(v=>{const s=getF(v,'Vehicle Status','VehicleStatus')||'Unknown';counts[s]=(counts[s]||0)+1;});
+  const labels=Object.keys(counts),data=Object.values(counts);
+  if(chartStatus)chartStatus.destroy();
+  chartStatus=new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:['#185FA5','#E24B4A','#EF9F27','#639922','#888780'].slice(0,labels.length),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:12},boxWidth:12,padding:12}}}}});
+}
+
+function renderLocations() {
+  const counts={};vehicles.forEach(v=>{const l=getF(v,'Location')||'Unknown';counts[l]=(counts[l]||0)+1;});
+  const max=Math.max(...Object.values(counts));
+  const colors=['#185FA5','#1D9E75','#EF9F27','#D85A30','#7F77DD','#888780'];
+  document.getElementById('location-list').innerHTML=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([loc,cnt],i)=>`<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="font-weight:500;">${loc}</span><span style="color:var(--text2);">${cnt} vehicle${cnt!==1?'s':''}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.round(cnt/max*100)}%;background:${colors[i%colors.length]};"></div></div></div>`).join('');
+}
+
+function renderAlertOverview() {
+  const alerts=getAlerts().slice(0,8);
+  document.getElementById('alert-overview').innerHTML=alerts.length?alerts.map(a=>`<div class="alert-item"><div><span style="font-weight:600;">${a.vehicle}</span><span style="color:var(--text2);margin-left:8px;font-size:12px;">${a.make} ${a.model} — ${a.type}</span></div><div style="display:flex;gap:8px;align-items:center;"><span style="color:var(--text3);font-size:12px;">${a.date}</span><span class="badge ${badgeCls(a)}">${badgeLbl(a)}</span></div></div>`).join(''):'<div class="empty">No alerts in the next 60 days.</div>';
+}
+
+function populateLocFilter() {
+  const locs=[...new Set(vehicles.map(v=>getF(v,'Location')).filter(Boolean))].sort();
+  document.getElementById('filter-loc').innerHTML='<option value="">All locations</option>'+locs.map(l=>`<option>${l}</option>`).join('');
+  document.getElementById('filter-loc').onchange=renderVehicles;
+}
+
+function populateReportFilters() {
+  const locs=[...new Set(vehicles.map(v=>getF(v,'Location')).filter(Boolean))].sort();
+  const makes=[...new Set(vehicles.map(v=>getF(v,'Make')).filter(Boolean))].sort();
+  document.getElementById('report-loc').innerHTML='<option value="">All locations</option>'+locs.map(l=>`<option>${l}</option>`).join('');
+  document.getElementById('report-make').innerHTML='<option value="">All makes</option>'+makes.map(m=>`<option>${m}</option>`).join('');
+}
+
+function renderVehicles() {
+  const q=(document.getElementById('search-v').value||'').toLowerCase();
+  const sf=(document.getElementById('filter-status').value||'').toLowerCase();
+  const lf=(document.getElementById('filter-loc').value||'').toLowerCase();
+  const rows=vehicles.filter(v=>{
+    const match=!q||Object.values(v).some(val=>String(val).toLowerCase().includes(q));
+    const st=!sf||getF(v,'Vehicle Status','VehicleStatus').toLowerCase().includes(sf);
+    const lo=!lf||getF(v,'Location').toLowerCase()===lf;
+    return match&&st&&lo;
+  });
+  const sc=s=>s.toLowerCase().includes('active')?'badge-green':s.toLowerCase().includes('out')?'badge-red':'badge-amber';
+  document.getElementById('vehicle-tbody').innerHTML=rows.length?rows.map(v=>{
+    const status=getF(v,'Vehicle Status','VehicleStatus');
+    const reg=getF(v,'Registration Due','RegistrationDue');
+    const miles=getF(v,'Current Mileage','CurrentMileage');
+    return`<tr><td style="font-weight:600;">${getF(v,'Title','Vehicle #')}</td><td>${getF(v,'Year')}</td><td>${getF(v,'Make')}</td><td>${getF(v,'Model')}</td><td>${getF(v,'Color')}</td><td>${getF(v,'License Plate #','LicensePlate_x0023_')}</td><td>${getF(v,'Location')}</td><td style="font-size:12px;">${reg?new Date(reg).toLocaleDateString():''}</td><td>${miles?Number(miles).toLocaleString():''}</td><td><span class="badge ${sc(status)}">${status}</span></td></tr>`;}).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px;">No vehicles match filters.</td></tr>';
+}
+
+function renderMaint() {
+  const types={},byCost={};let total=0;
+  maint.forEach(m=>{const t=getF(m,'Service Type','ServiceType')||'Other';types[t]=(types[t]||0)+1;const c=parseFloat(String(getF(m,'Cost','cost')||'0').replace(/[$,]/g,''))||0;byCost[t]=(byCost[t]||0)+c;total+=c;});
+  document.getElementById('maint-kpis').innerHTML=`<div class="metric"><div class="metric-label">Total services</div><div class="metric-value col-blue">${maint.length}</div></div><div class="metric"><div class="metric-label">Total cost</div><div class="metric-value col-blue" style="font-size:20px;">$${total.toLocaleString()}</div></div><div class="metric"><div class="metric-label">Avg cost/service</div><div class="metric-value col-blue" style="font-size:20px;">$${maint.length?Math.round(total/maint.length).toLocaleString():0}</div></div>`;
+  if(chartMaint)chartMaint.destroy();
+  chartMaint=new Chart(document.getElementById('maintChart'),{type:'bar',data:{labels:Object.keys(types),datasets:[{data:Object.values(types),backgroundColor:'#185FA5',borderRadius:5,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:11},autoSkip:false,maxRotation:30}},y:{ticks:{stepSize:1}}}}});
+  document.getElementById('maint-cost').innerHTML=`<div style="font-size:24px;font-weight:700;color:var(--blue);margin-bottom:14px;">$${total.toLocaleString()}</div>`+Object.entries(byCost).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`<div class="alert-item"><span>${t}</span><span style="font-weight:600;">$${c.toLocaleString()}</span></div>`).join('');
+  document.getElementById('maint-tbody').innerHTML=[...maint].reverse().map(m=>{const date=getF(m,'Date of Service','DateofService');const miles=getF(m,'Mileage @ Service','MileageatService');const cost=getF(m,'Cost','cost');return`<tr><td style="font-weight:600;">${getF(m,'Vehicle #','VehicleNumber')}</td><td>${getF(m,'Service Type','ServiceType')}</td><td>${date?new Date(date).toLocaleDateString():''}</td><td>${miles?Number(miles).toLocaleString():''}</td><td style="font-weight:600;">${cost}</td><td>${getF(m,'Vendor/Shop','VendorShop')}</td><td style="color:var(--text2);">${getF(m,'Notes')}</td></tr>`;}).join('');
+}
+
+function renderMileage() {
+  document.getElementById('mileage-tbody').innerHTML=[...mileage].reverse().map(m=>{const date=getF(m,'Entry Date','EntryDate');const odo=getF(m,'Odometer Reading','OdometerReading');return`<tr><td style="font-weight:600;">${getF(m,'Vehicle #','VehicleNumber')}</td><td>${date?new Date(date).toLocaleDateString():''}</td><td>${odo?Number(odo).toLocaleString()+' mi':''}</td><td>${getF(m,'Submitted By','SubmittedBy')}</td><td>${getF(m,'Location')}</td><td style="color:var(--text2);">${getF(m,'Notes')}</td></tr>`;}).join('');
+}
+
+function renderAlerts() {
+  const alerts=getAlerts();
+  const urgent=alerts.filter(a=>a.urgent).length,soon=alerts.filter(a=>!a.urgent&&a.days<=30).length;
+  document.getElementById('alert-kpis').innerHTML=`<div class="metric"><div class="metric-label">Total upcoming</div><div class="metric-value col-blue">${alerts.length}</div></div><div class="metric"><div class="metric-label">Urgent (≤14 days)</div><div class="metric-value ${urgent>0?'col-red':'col-green'}">${urgent}</div></div><div class="metric"><div class="metric-label">Soon (≤30 days)</div><div class="metric-value ${soon>0?'col-amber':'col-green'}">${soon}</div></div>`;
+  document.getElementById('alert-full').innerHTML=alerts.length?alerts.map(a=>`<div class="alert-item"><div><span style="font-weight:600;">${a.vehicle}</span><span style="color:var(--text2);margin-left:8px;font-size:12px;">${a.make} ${a.model} — ${a.type}</span></div><div style="display:flex;gap:8px;align-items:center;"><span style="color:var(--text3);font-size:12px;">${a.date}</span><span class="badge ${badgeCls(a)}">${badgeLbl(a)}</span></div></div>`).join(''):'<div class="empty">No alerts in the next 60 days.</div>';
+}
+
+// CSV EXPORT
+function toCSV(headers, rows) {
+  const escape = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  return [headers.map(escape).join(','), ...rows.map(r=>r.map(escape).join(','))].join('\n');
+}
+
+function downloadCSV(filename, content) {
+  const blob = new Blob([content], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function exportCSV(type) {
+  const today = new Date().toLocaleDateString().replace(/\//g,'-');
+  if (type === 'vehicles') {
+    const csv = toCSV(
+      ['Vehicle #','Year','Make','Model','Color','Status','Location','License Plate','Registration Due','Current Mileage','Last Oil Change'],
+      vehicles.map(v=>[getF(v,'Title','Vehicle #'),getF(v,'Year'),getF(v,'Make'),getF(v,'Model'),getF(v,'Color'),getF(v,'Vehicle Status','VehicleStatus'),getF(v,'Location'),getF(v,'License Plate #','LicensePlate_x0023_'),getF(v,'Registration Due','RegistrationDue'),getF(v,'Current Mileage','CurrentMileage'),getF(v,'Last Oil Change','LastOilChange')])
+    );
+    downloadCSV(`ArcFleet_Vehicles_${today}.csv`, csv);
+  } else if (type === 'alerts') {
+    const alerts = getAlerts();
+    const csv = toCSV(
+      ['Vehicle #','Make','Model','Alert Type','Due Date','Days Until Due','Urgent'],
+      alerts.map(a=>[a.vehicle,a.make,a.model,a.type,a.date,a.days,a.urgent?'YES':'NO'])
+    );
+    downloadCSV(`ArcFleet_Alerts_${today}.csv`, csv);
+  } else if (type === 'maintenance') {
+    const csv = toCSV(
+      ['Vehicle #','Service Type','Date of Service','Mileage at Service','Cost','Vendor/Shop','Notes'],
+      maint.map(m=>[getF(m,'Vehicle #','VehicleNumber'),getF(m,'Service Type','ServiceType'),getF(m,'Date of Service','DateofService'),getF(m,'Mileage @ Service','MileageatService'),getF(m,'Cost','cost'),getF(m,'Vendor/Shop','VendorShop'),getF(m,'Notes')])
+    );
+    downloadCSV(`ArcFleet_Maintenance_${today}.csv`, csv);
+  } else if (type === 'mileage') {
+    const csv = toCSV(
+      ['Vehicle #','Entry Date','Odometer Reading','Submitted By','Location','Notes'],
+      mileage.map(m=>[getF(m,'Vehicle #','VehicleNumber'),getF(m,'Entry Date','EntryDate'),getF(m,'Odometer Reading','OdometerReading'),getF(m,'Submitted By','SubmittedBy'),getF(m,'Location'),getF(m,'Notes')])
+    );
+    downloadCSV(`ArcFleet_Mileage_${today}.csv`, csv);
+  } else if (type === 'costs') {
+    const byCost = {};
+    maint.forEach(m=>{
+      const v=getF(m,'Vehicle #','VehicleNumber');
+      const t=getF(m,'Service Type','ServiceType');
+      const c=parseFloat(String(getF(m,'Cost','cost')||'0').replace(/[$,]/g,''))||0;
+      if(!byCost[v])byCost[v]={};
+      byCost[v][t]=(byCost[v][t]||0)+c;
+    });
+    const rows=[];
+    Object.entries(byCost).forEach(([v,types])=>{Object.entries(types).forEach(([t,c])=>{rows.push([v,t,'$'+c.toFixed(2)]);});});
+    const csv = toCSV(['Vehicle #','Service Type','Total Cost'],rows);
+    downloadCSV(`ArcFleet_CostSummary_${today}.csv`, csv);
+  } else if (type === 'registration') {
+    const csv = toCSV(
+      ['Vehicle #','Year','Make','Model','License Plate','Registration Due','DOT Vehicle','Location','Status'],
+      vehicles.map(v=>[getF(v,'Title','Vehicle #'),getF(v,'Year'),getF(v,'Make'),getF(v,'Model'),getF(v,'License Plate #','LicensePlate_x0023_'),getF(v,'Registration Due','RegistrationDue'),getF(v,'DOT Vehicle','DOTVehicle'),getF(v,'Location'),getF(v,'Vehicle Status','VehicleStatus')])
+    );
+    downloadCSV(`ArcFleet_Registration_${today}.csv`, csv);
+  } else if (type === 'custom') {
+    const sf=document.getElementById('report-status').value.toLowerCase();
+    const lf=document.getElementById('report-loc').value.toLowerCase();
+    const mf=document.getElementById('report-make').value.toLowerCase();
+    const filtered=vehicles.filter(v=>{
+      const st=!sf||getF(v,'Vehicle Status','VehicleStatus').toLowerCase().includes(sf);
+      const lo=!lf||getF(v,'Location').toLowerCase()===lf;
+      const mk=!mf||getF(v,'Make').toLowerCase()===mf;
+      return st&&lo&&mk;
+    });
+    const csv = toCSV(
+      ['Vehicle #','Year','Make','Model','Color','Status','Location','License Plate','Registration Due','Current Mileage'],
+      filtered.map(v=>[getF(v,'Title','Vehicle #'),getF(v,'Year'),getF(v,'Make'),getF(v,'Model'),getF(v,'Color'),getF(v,'Vehicle Status','VehicleStatus'),getF(v,'Location'),getF(v,'License Plate #','LicensePlate_x0023_'),getF(v,'Registration Due','RegistrationDue'),getF(v,'Current Mileage','CurrentMileage')])
+    );
+    downloadCSV(`ArcFleet_Custom_${today}.csv`, csv);
+  }
+}
+
+function switchTab(name,el) {
+  ['overview','vehicles','maintenance','mileage','alerts','reports'].forEach(t=>document.getElementById('tab-'+t).style.display=t===name?'block':'none');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+window.addEventListener('load', () => {
+  const t = parseHash();
+  if (t) { token = t; loadLive(); }
+  else { loadDemo(); showDash(); }
+});
+</script>
+</body>
+</html>
